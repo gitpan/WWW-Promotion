@@ -9,28 +9,44 @@ your site to lot of search engines.
 
 WWW::Promotion is used to submit your site to lot of search engines. It is 
 possible to download SPT5 interface for WWW::Promotion at 
-http://www.tapor.com/promotion/. Also on http://www.tapor.com/promotion/ your 
-may find huge database of search engines. WWW::Promotion is 
-world wide standart form promoting websites. 
+http://www.tapor.com/promotion/. Also on http://www.tapor.com/promotion/ your 
+may find huge database of search engines. WWW::Promotion is 
+world wide standart for promoting websites. 
 
 =cut
 
 ##############################################################################
 use strict;
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %Promotion %Setup @categories $outputhandler);
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %Promotion %Setup @internal_promotion_categories $outputhandler);
 
 require Exporter;
 
-use TAPORlib;
+use TAPORlib 8.70;
 
 @ISA = qw(Exporter);
 @EXPORT = qw(&WWW_Promotion
-	     &GetInternalPromotionCategories);
+	     @internal_promotion_categories
+	     );
 @EXPORT_OK = qw();
 
-$VERSION = "5.00";
+$VERSION = "5.20";
 
-@categories = (
+##############################################################################
+
+=head1 IMPORTED FUNCTIONS/VARS
+
+=head1
+
+=head2 @internal_promotion_categories
+
+ Description:
+ 
+ Array of internal categories, which can you use to promote your website. 
+ If you will use other category WWW::Promotion will return an error.
+
+=cut  
+
+@internal_promotion_categories = (
 
 "Art",
 "Internet",
@@ -41,10 +57,6 @@ $VERSION = "5.00";
 );
 
 ##############################################################################
-
-=head1 IMPORTED FUNCTIONS/VARS
-
-=head1
 
 =head2 %out=&WWW_Promotion(\%Promotion,\%Setup);
 
@@ -178,51 +190,42 @@ sub WWW_Promotion {
     %Setup = %$LSetup;
     
     my %out;
-    $out{'error'} = 1;
+
+    if(!$Setup{'logfile'}) {$Setup{'logfile'} = "/dev/null";}
+    my $logfile = $Setup{'logfile'};
 
     #-------------------------------------------------------------------------
-    print_log("WWW::Promotion: v$VERSION\n\n");
+    add_string_to_file($logfile,"WWW::Promotion: v$VERSION\n\n");
     #------------------------- Checking input data ---------------------------
     if(!$Promotion{'title'})
 	{
-	my $error = "WWW::Promotion: Error - \$Promotion{'title'} must be passed";
-	print_log("$error\n");
-	$out{'errortxt'} = $error;
-	return %out;
+	$out{'errortxt'} = create_error_string("WWW::Promotion::WWW_Promotion()","\$Promotion{'title'} must be passed");
+	goto print_error_to_log_and_exit;
 	}
     if(!$Promotion{'url'})
 	{
-	my $error = "WWW::Promotion: Error - \$Promotion{'url'} must be passed";
-	print_log("$error\n");
-	$out{'errortxt'} = $error;
-	return %out;
+	$out{'errortxt'} = create_error_string("WWW::Promotion::WWW_Promotion()","\$Promotion{'url'} must be passed");
+	goto print_error_to_log_and_exit;
 	}
     if(!($Promotion{'url'} =~ m/^http:\/\//i))
 	{
-	my $error = "WWW::Promotion: Error - Invalid url '$Promotion{'url'}'";
-	print_log("$error\n");
-	$out{'errortxt'} = $error;
-	return %out;
+	$out{'errortxt'} = create_error_string("WWW::Promotion::WWW_Promotion()","Invalid url '$Promotion{'url'}'");
+	goto print_error_to_log_and_exit;
 	}
     if(!$Promotion{'description'})
 	{
-	my $error = "WWW::Promotion: Error - \$Promotion{'description'} must be passed";
-	print_log("$error\n");
-	$out{'errortxt'} = $error;
-	return %out;
+	$out{'errortxt'} = create_error_string("WWW::Promotion::WWW_Promotion()","\$Promotion{'description'} must be passed");
+	goto print_error_to_log_and_exit;
 	}
     if(!$Promotion{'category'})	
 	{
-	my $error = "WWW::Promotion: Error - \$Promotion{'category'} must be passed";
-	print_log("$error\n");
-	$out{'errortxt'} = $error;
-	return %out;
+	$out{'errortxt'} = create_error_string("WWW::Promotion::WWW_Promotion()","\$Promotion{'category'} must be passed");
+	goto print_error_to_log_and_exit;
 	}
     else
 	{
-	my @cats = GetInternalPromotionCategories();
         my $ok=0;
-	foreach (@cats)
+	foreach (@internal_promotion_categories)
 	    {
 	    if($_ eq $Promotion{'category'})
 		{
@@ -232,20 +235,16 @@ sub WWW_Promotion {
 	    }
 	if(!$ok)
 	    {
-	    my $error = "WWW::Promotion: Error - \$Promotion{'category'} has invalid internal category";
-	    print_log("$error\n");
-	    $out{'errortxt'} = $error;
-	    return %out;
+            $out{'errortxt'} = create_error_string("WWW::Promotion::WWW_Promotion()","\$Promotion{'category'} has invalid internal category");
+            goto print_error_to_log_and_exit;
 	    }
 	}
     my $internalcategory = $Promotion{'category'};
     
     if(defined($Setup{'fastmode'}) && !defined($Setup{'proxy'}))
 	{
-	my $error = "WWW::Promotion: Error - FASTMODE [tm] may be done only via proxy - \$Setup{'proxy'}!";
-	print_log("$error\n");
-	$out{'errortxt'} = $error;
-	return %out;
+        $out{'errortxt'} = create_error_string("WWW::Promotion::WWW_Promotion()","FASTMODE [tm] may be done only via proxy - \$Setup{'proxy'}!");
+	goto print_error_to_log_and_exit;
 	}
     #-------------------------------- Defaults -------------------------------
     if($Setup{'outputhandler'})
@@ -341,25 +340,24 @@ sub WWW_Promotion {
 	$Promotion{'street'} = $Promotion{'address'};
 	}
 
-    if(!$Setup{'logfile'}) {$Setup{'logfile'} = "/dev/null";}
     if(!$Setup{'timeoutconnect'}) {$Setup{'timeoutconnect'} = 10;}
     if(!$Setup{'timeoutrequest'}) {$Setup{'timeoutrequest'} = 60;}
     #-------------------------------------------------------------------------
-    print_log("Input Promotion hash:\n\n");
+    add_string_to_file($logfile,"Input Promotion hash:\n\n");
     foreach (sort keys %Promotion)
 	{
 	$Promotion{$_} = Delete_CRLF_from_End_Of_String($Promotion{$_});
-	print_log("Promotion{'$_'} = '$Promotion{$_}'\n");
+	add_string_to_file($logfile,"\$Promotion{'$_'} = '$Promotion{$_}'\n");
 	}
-    print_log("\n");
+    add_string_to_file($logfile,"\n");
     #-------------------------------------------------------------------------
-    print_log("Input Setup hash:\n\n");
+    add_string_to_file($logfile,"Input Setup hash:\n\n");
     foreach (sort keys %Setup)
 	{
 	$Setup{$_} = Delete_CRLF_from_End_Of_String($Setup{$_});
-	print_log("Setup{'$_'} = '$Setup{$_}'\n");
+	add_string_to_file($logfile,"\$Setup{'$_'} = '$Setup{$_}'\n");
 	}
-    print_log("\n");
+    add_string_to_file($logfile,"\n");
     #-------------------------------------------------------------------------    
     my @filestosubmitto;
     my @tmp;
@@ -436,7 +434,7 @@ sub WWW_Promotion {
 	
 	if(defined($GET) && defined($POST))
 	    {
-	    print_log("\nWWW::Promotion: Error in $se - 2 Methods POST & GET are defined!\n");
+	    add_string_to_file($logfile,"\nWWW::Promotion::WWW_Promotion() Error in $se - 2 Methods POST & GET are defined!\n");
 	    next;
 	    }
 	if(defined($GET))
@@ -453,12 +451,12 @@ sub WWW_Promotion {
 	    }
         else
 	    {
-	    print_log("\nWWW::Promotion: Error in $se - Can't find Method!\n");
+	    add_string_to_file($logfile,"\nWWW::Promotion::WWW_Promotion() Error in $se - Can't find Method!\n");
 	    next;
 	    }	
         if(!$Content)
 	    {
-	    print_log("\nWWW::Promotion: Error in $se - Can't find content!\n");
+	    add_string_to_file($logfile,"\nWWW::Promotion::WWW_Promotion() Error in $se - Can't find content!\n");
 	    next;
 	    }
         #---------------------------------------------------------------------
@@ -469,25 +467,26 @@ sub WWW_Promotion {
         $Url =~ s|//|/|g;
         $Url = "http://$Url";
         #---------------------------------------------------------------------
-        print_log("\n--------------------- Search Engine --------------------\n");
-        print_log("Search Engine: $se\n");
-	if(defined($Country)) { print_log("Country: $Country\n"); }
-	if(defined($SEname)) { print_log("SEname: $SEname\n"); }
-	if(defined($SEurl)) { print_log("SEurl: $SEurl\n"); }
-	print_log("Method: $Method\n");
-	if(defined($Referer)) { print_log("Referer: $Referer\n"); }
-	if(defined($Host)) { print_log("Host: $Host\n"); }
-	print_log("Url: $Url\n");
-	print_log("Content: $Content\n");
-	if(defined($Server)) { print_log("Server: $Server\n"); }
+	add_string_to_file($logfile,"\n");
+	add_string_to_file_spec_output($logfile,"WWW::Promotion::WWW_Promotion()","Search Engine","\n");
+        add_string_to_file($logfile,"Search Engine: $se\n");
+	if(defined($Country)) { add_string_to_file($logfile,"Country: $Country\n"); }
+	if(defined($SEname)) { add_string_to_file($logfile,"SEname: $SEname\n"); }
+	if(defined($SEurl)) { add_string_to_file($logfile,"SEurl: $SEurl\n"); }
+	add_string_to_file($logfile,"Method: $Method\n");
+	if(defined($Referer)) { add_string_to_file($logfile,"Referer: $Referer\n"); }
+	if(defined($Host)) { add_string_to_file($logfile,"Host: $Host\n"); }
+	add_string_to_file($logfile,"Url: $Url\n");
+	add_string_to_file($logfile,"Content: $Content\n");
+	if(defined($Server)) { add_string_to_file($logfile,"Server: $Server\n"); }
 	if($#Category >=0 )
 	    {
 	    foreach (@Category)
 		{
-		print_log("Category:  $_\n");
+		add_string_to_file($logfile,"Category:  $_\n");
 		}
 	    }
-	print_log("\n");
+	add_string_to_file($logfile,"\n");
 
 	if(defined($Country)) { $data{'Country'} = $Country; }
 	if(defined($Server)) { $data{'Server'} = $Server; }
@@ -501,8 +500,8 @@ sub WWW_Promotion {
 	if($#Category >= 0)
 	    {
 	    
-	    print_log("--- Selecting category for Search Engine (Internal category -> Search Engine category) ---\n");
-	    print_log("Internal category: '$internalcategory'\n");
+	    add_string_to_file($logfile,"--- Selecting category for Search Engine (Internal category -> Search Engine category) ---\n");
+	    add_string_to_file($logfile,"Internal category: '$internalcategory'\n");
 	    
 	    foreach (@Category)
 	        {
@@ -527,7 +526,7 @@ sub WWW_Promotion {
 	    if(!$Promotion{'category'}) 
 		{
 		$_ = $Category[0];
-		print_log("CATWARN!!! Using first default category: '$_'\n");
+		add_string_to_file($logfile,"CATWARN!!! Using first default category: '$_'\n");
 		if(/<\*\*\*>/i)
 	    	    {
 	    	    $_ =~ m/\s*(.*?)\s*<\*\*\*>/i;
@@ -542,7 +541,7 @@ sub WWW_Promotion {
 
 	if($Promotion{'category'})	    
 	    {
-	    print_log("Selected Search Engine category is: '$Promotion{'category'}'\n");
+	    add_string_to_file($logfile,"Selected Search Engine category is: '$Promotion{'category'}'\n");
 	    }
         #---------------------------------------------------------------------
 	# Set new Content
@@ -558,11 +557,12 @@ sub WWW_Promotion {
         #---------------------------------------------------------------------
 	while($Content =~ /(<\*\*\*[^\*]*\*\*\*>)/g)
 	    {
-	    print_log("Keyword not changed => $1\n");
+	    add_string_to_file($logfile,"Keyword not changed => $1\n");
 	    }
-	print_log("\n");
-	print_log("New Referer: $Referer\n");
-	print_log("New Content: $Content\n");	
+	add_string_to_file($logfile,"\n");
+	add_string_to_file($logfile,"After <***KEYS***> to VALUES:\n");
+	add_string_to_file($logfile,"New Referer: $Referer\n");
+	add_string_to_file($logfile,"New Content: $Content\n");	
 	
 	my %pagenow = ();
 	
@@ -581,8 +581,8 @@ sub WWW_Promotion {
         my %out = GetPageNow_4(%pagenow);
         if($out{'error'})
 	    {
-	    my $error = "WWW::Promotion: Error in $se - $out{'errortxt'}!";
-	    print_log("\n$error\n");
+            my $error = create_error_string("WWW::Promotion::WWW_Promotion()","Error in $se - $out{'errortxt'}!");
+	    add_string_to_file($logfile,"\n$error\n");
 	    $data{'error'} = 1;
 	    $data{'errortxt'} = $error;
 	    if($outputhandler) { &$outputhandler(%data); }
@@ -597,27 +597,14 @@ sub WWW_Promotion {
     %data = ();
     $data{'action'} = "sendfooter";
     if($outputhandler) { &$outputhandler(%data); }
-}
-##############################################################################
-=head2 @cats =&GetInternalPromotionCategories()
+    $out{'error'} = 0;
+    delete $out{'errortxt'};
+    return %out;
 
- Description:
- 
- This function return array of internal categories, which can you
- use to promote your website. If you will use other category WWW::Promotion
- returns error.
-
-=cut  
-
-sub GetInternalPromotionCategories {
-    return @categories;
-}
-##############################################################################
-sub print_log {
-    my $string = shift;
-    
-    add_string_to_file($Setup{'logfile'},$string);
-#    print $string;
+    print_error_to_log_and_exit:
+    $out{'error'} = 1;
+    add_string_to_file($logfile,"\n$out{'errortxt'}\n");
+    return %out;
 }
 ##############################################################################
 sub getrandomkeyword {
@@ -630,12 +617,12 @@ sub getrandomkeyword {
 =head1 Search Engine Database (SEDB)
  
  SEDB contains an information about search engines. WWW::Promotion 
- will use this information to submit your URL.
+ will use this information to submit your URL.
 
  SEDB it is a directory which contains files. Each file contains
  an information about one search engine. Files has various names
- and may reside in different subdirectories inside SEDB. This files 
- has the following format:
+ and may reside in different subdirectories inside SEDB. This files 
+ has the following format:
 
  POST http://www.rex-search.com/add/add.cgi HTTP/1.0
  Content: thispage=3&catnum=&url=<***URL***>&navigate=&yourname=<***CONTACTNAME***>&email=<***EMAIL***>&name=<***TITLE***>&keys=<***KEYWORDS***>&desc=<***DESCRIPTION***>&confirm=&urlfail=&refer=http%3A%2F%2Fwww.rex-search.com%2Fadd%2F&cat=<***CATEGORY***>&catkeep=Submit+this+Site
@@ -646,11 +633,11 @@ sub getrandomkeyword {
 
  The first line describes which method to use for submit. Also it
  contains the address where to post data. "HTTP/1.0" in this line 
- unessential, WWW::Promotion will ignore it. This line is required, 
- without it the module will log a bad file and process the next file. 
- For method POST it is required second line (Content:), which contains 
- search engine cantent data. In method GET content is placed in the 
- first line through "?". In a case if the address contains a relative 
+ unessential, WWW::Promotion will ignore it. This line is required, 
+ without it the module will log a bad file and process the next file. 
+ For method POST it is required second line (Content:), which contains 
+ search engine cantent data. In method GET content is placed in the 
+ first line through "?". In a case if the address contains a relative 
  address it is required third line (Host:), which describes  which 
  address of server to use for connect.
 
@@ -658,11 +645,11 @@ sub getrandomkeyword {
 
  Referer: http://www.ditto.com/urlrequest/addurl.asp
  Inform the module to use this referer. Advanced technology, the 
- engines "think" you are submitting from their form. 
+ engines "think" you are submitting from their form. 
 
  Host: www.ditto.com
  Inform the module which server to use for connect. It is required 
- only when the first line contains a relative address on a server 
+ only when the first line contains a relative address on a server 
  (for example " GET / HTTP/1.0 ").
 
  Country: United States
@@ -684,22 +671,22 @@ sub getrandomkeyword {
  Category: SEcat-Internet <***> Internet
  Category: SEcat-Business <***> Business
  Categories determined in the search engine. These lines may 
- be more than one. Format:
+ be more than one. Format:
 
  Category: (a category of the search engine)<***>(an internal category of the module).
  
  The module will search for conformity of an internal category 
- with a category of a search engine. If you for example have 
- defined an internal category "Other", the module will search for 
- line "Category: SEcat <***> Other" and will use the category 
- "SEcat" for submit. In a case if it does not find the 
+ with a category of a search engine. If you for example have 
+ defined an internal category "Other", the module will search for 
+ line "Category: SEcat <***> Other" and will use the category 
+ "SEcat" for submit. In a case if it does not find the 
  appropriate category it will use first of determined.
  (Category:) it is required only when a content contains a key 
  <***CATEGORY***>. See below.
 
  The content contains keys which in process of submiting of your 
- URL will be replaced with the data, which you have entered. 
- The following keys can be used in the content:
+ URL will be replaced with the data, which you have entered. 
+ The following keys can be used in the content:
 
 
  <***TITLE***>              -> Ttile of the page (Ex: Super Page)
@@ -708,7 +695,7 @@ sub getrandomkeyword {
  <***DESCRIPTION***>        -> Description (Ex: Blah-Blah this page is)
  <***KEYWORDS***>           -> Keywords (Ex: test, test2, test3) 
  <***ONERANDOMKEYWORD***>   -> One random keyword. Keywords are 
-			       separeted by points. (Ex: test2)
+			       separeted by points. (Ex: test2)
  
  <***CONTACTNAME***>        -> Contact name (Ex: John Doe)
  <***NAMETITLE***>          -> Nametitle (Ex: Mr.)
@@ -737,13 +724,13 @@ sub getrandomkeyword {
 
 
  If you want to create your own file which describe a search engine 
- use your liked text editor or PERL script NEWSE.cgi delivered with 
- SPT5 (http://www.tapor.com/promotion/).
+ use your liked text editor or PERL script NEWSE.cgi delivered with 
+ SPT5 (http://www.tapor.com/promotion/).
  
 =head1 &OutputHandler() Procedure
 
  It's procedure which will be called by the module for a conclusion 
- of the data about submit process. Procedure OutputHandler has the 
+ of the data about submit process. Procedure OutputHandler has the 
  following format:
 
  sub OutputHandler {
@@ -751,25 +738,25 @@ sub getrandomkeyword {
  }
 
  Hash %data will contains data from WWW::Promotion module. The module 
- sends 3 types of the data:
+ sends 3 types of the data:
 
  1. $data{'action'} eq "sendheader"
 
  WWW:: Promotion tell to you to send header of HTML page to the client 
- browser. It's sent once by the module.
+ browser. It's sent once by the module.
 
  2 $data{'action'} eq "sedata"
 
  WWW::Promotion tell you to send the information on the search engine, 
- which was processed.
+ which was processed.
 
  3 $data{'action'} eq "sendfooter"
 
  WWW::Promotion tell you to send footer of HTML page to the client 
- browser. It is sent once by the module.
+ browser. It is sent once by the module.
 
  When $data{'action'} it is equal "sedata" the hash %data contains 
- also other keys:
+ also other keys:
 
  $data{'SEname'}
  The name of the search engine. Defined if a file of search engine 
@@ -788,11 +775,24 @@ sub getrandomkeyword {
 
  $data{'error'}
  TRUE if there was an error at submit process, $data {'errortxt'} 
- contains the text of the error.
+ contains the text of the error.
 
  $data {'Server'}
  The software which is used in the search engine.
  Defined if a file of search engine contains a line (Server:).
+
+=head1 FASTMODE [tm]
+
+ FASTMODE[tm] is method to submit your URL. In the FASTMODE submission is 
+ blazing fast. When $Setup{'fastmode'} flag is passed to WWW_Promotion
+ procedure WWW::Promotion looks for $Setup{'proxy'} and if $Setup{'proxy'}
+ not defined it returns error.
+ 
+ Why FASTMODE is fast ?
+ 
+ Because WWW::Promotion will not wait answer from server. 
+ It will continue to the next search engine without waiting answer
+ from previous one. This is may be done only via proxy server.
 
 =head1 COPYRIGHT
 
